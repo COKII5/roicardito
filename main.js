@@ -13,6 +13,9 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
+// altura de la cámara (subida extra)
+const CAMERA_START_Y = 8;
+
 // HUD SCORE
 const scoreEl = document.createElement("div");
 scoreEl.style.position = "fixed";
@@ -86,8 +89,9 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
 
-  camera.position.set(0, 1.6, 5);
-  camera.lookAt(0, 1.6, 0);
+  // 📍 cámara más alta desde el inicio
+  camera.position.set(0, CAMERA_START_Y, 5);
+  camera.lookAt(0, CAMERA_START_Y, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
@@ -95,8 +99,9 @@ function init() {
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
+  // 📍 al entrar en VR, levantar aún más la cámara sobre el suelo
   renderer.xr.addEventListener("sessionstart", () => {
-    camera.position.set(0, 1.6, 0);
+    camera.position.set(0, CAMERA_START_Y, 0);
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -104,6 +109,7 @@ function init() {
     if (!controls.isLocked && !gameOver) controls.lock();
   });
 
+  // LUCES
   const hemiLight = new THREE.HemisphereLight(0xff6644, 0x331100, 0.8);
   hemiLight.position.set(0, 80, 0);
   scene.add(hemiLight);
@@ -115,7 +121,7 @@ function init() {
   const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
   scene.add(ambientRed);
 
-  // Suelo invisible para proteger posición
+  // Suelo base invisible en y=0 (referencia)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(2000, 2000),
     new THREE.MeshBasicMaterial({ visible: false })
@@ -124,19 +130,34 @@ function init() {
   ground.position.y = 0;
   scene.add(ground);
 
+  // MAPA
   const loader = new GLTFLoader();
-  loader.load("/map 79p3.glb", (gltf) => {
-    loadedModel = gltf.scene;
-    loadedModel.position.y = 0;
-    scene.add(loadedModel);
-  });
+  loader.load(
+    "/map 79p3.glb",
+    (gltf) => {
+      loadedModel = gltf.scene;
+      // si tu suelo del mapa está en y=0, déjalo así.
+      loadedModel.position.y = 0;
+      scene.add(loadedModel);
+      console.log("Modelo principal cargado");
+    },
+    undefined,
+    (err) => console.error("Error cargando modelo:", err)
+  );
 
-  loader.load("/moon.glb", (gltf) => {
-    const model2 = gltf.scene;
-    model2.position.set(5, 50, 100);
-    model2.scale.set(5, 5, 5);
-    scene.add(model2);
-  });
+  // LUNA / MODELO EXTRA
+  loader.load(
+    "/moon.glb",
+    (gltf) => {
+      const model2 = gltf.scene;
+      model2.position.set(5, 50, 100);
+      model2.scale.set(5, 5, 5);
+      scene.add(model2);
+      console.log("Segundo modelo cargado");
+    },
+    undefined,
+    (err) => console.error("Error cargando segundo modelo:", err)
+  );
 
   clock = new THREE.Clock();
 
@@ -223,8 +244,8 @@ function animate() {
     timeLeft -= delta;
     if (timeLeft <= 0) {
       timeLeft = 0;
-      gameOver = true;
       gameOverEl.style.display = "block";
+      gameOver = true;
       controls.unlock();
     }
 
