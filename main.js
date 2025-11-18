@@ -72,9 +72,9 @@ crosshair.style.display = "flex";
 crosshair.style.alignItems = "center";
 crosshair.style.justifyContent = "center";
 crosshair.innerHTML = `
-  <div style="width:2px;height:14px;background:white;position:absolute;"></div>
-  <div style="width:14px;height:2px;background:white;position:absolute;"></div>
-`;
+    <div style="width:2px;height:14px;background:white;position:absolute;"></div>
+    <div style="width:14px;height:2px;background:white;position:absolute;"></div>
+  `;
 document.body.appendChild(crosshair);
 
 function init() {
@@ -88,9 +88,12 @@ function init() {
   camera.position.set(0, 15, 5);
   camera.lookAt(0, 5, 0);
 
+  // ...existing code...
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
+  renderer.xr.setReferenceSpaceType("local-floor");
+
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
@@ -118,26 +121,20 @@ function init() {
 
   // MAPA
   const loader = new GLTFLoader();
-  loader.load(
-    "/map 79p3.glb",
-    (gltf) => {
-      loadedModel = gltf.scene;
-      loadedModel.position.y = -1.6; // 🟢 Alineado al piso VR
-      scene.add(loadedModel);
-      console.log("Mapa cargado");
-    }
-  );
+  loader.load("/map 79p3.glb", (gltf) => {
+    loadedModel = gltf.scene;
+    loadedModel.position.y = 1.6; // 🟢 Alineado al piso VR
+    scene.add(loadedModel);
+    console.log("Mapa cargado");
+  });
 
   // LUNA
-  loader.load(
-    "/moon.glb",
-    (gltf) => {
-      const model2 = gltf.scene;
-      model2.position.set(5, 50, 100);
-      scene.add(model2);
-      console.log("Luna cargada");
-    }
-  );
+  loader.load("/moon.glb", (gltf) => {
+    const model2 = gltf.scene;
+    model2.position.set(5, 50, 100);
+    scene.add(model2);
+    console.log("Luna cargada");
+  });
 
   clock = new THREE.Clock();
 
@@ -148,9 +145,13 @@ function init() {
 }
 
 function spawnSphere() {
-  const geo = new THREE.SphereGeometry(THREE.MathUtils.randFloat(0.6, 1.5), 32, 32);
+  const geo = new THREE.SphereGeometry(
+    THREE.MathUtils.randFloat(0.6, 1.5),
+    32,
+    32
+  );
   const mat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5)
+    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
   });
 
   const mesh = new THREE.Mesh(geo, mat);
