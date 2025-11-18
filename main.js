@@ -15,6 +15,9 @@ let gameOver = false;
 
 let groundY = 0;
 
+// 🔽 offset extra para bajar el mundo completo
+const WORLD_OFFSET_Y = -5;
+
 // HUD SCORE
 const scoreEl = document.createElement("div");
 scoreEl.style.position = "fixed";
@@ -79,7 +82,6 @@ crosshair.innerHTML = `
 `;
 document.body.appendChild(crosshair);
 
-
 function init() {
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x440000, 200, 2000);
@@ -92,7 +94,6 @@ function init() {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
-
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
@@ -116,7 +117,7 @@ function init() {
   const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
   scene.add(ambientRed);
 
-  // SUELO INVISIBLE PARA REFERENCE
+  // Suelo base invisible (referencia)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(2000, 2000),
     new THREE.MeshBasicMaterial({ visible: false })
@@ -127,35 +128,41 @@ function init() {
 
   const loader = new GLTFLoader();
 
-  // 📌 MAPA PRINCIPAL
+  // MAPA PRINCIPAL
   loader.load(
     "/map 79p3.glb",
     (gltf) => {
       loadedModel = gltf.scene;
       scene.add(loadedModel);
 
-      // bounding box detecta altura real del suelo del glb
       const box = new THREE.Box3().setFromObject(loadedModel);
-      loadedModel.position.y = -box.min.y;
-      groundY = -box.min.y;
+      // suelo original del modelo
+      const baseY = box.min.y;
 
-      // posición inicial de cámara fuera de VR
+      // bajamos el mundo: lo alineamos + offset extra
+      loadedModel.position.y = -baseY + WORLD_OFFSET_Y;
+      groundY = WORLD_OFFSET_Y; // ahora el suelo lógico está más abajo
+
       camera.position.set(0, groundY + 1.6, 5);
       camera.lookAt(0, groundY + 1.6, 0);
 
-      console.log("Suelo detectado en y =", groundY);
-    }
+      console.log("Suelo original modelo y =", baseY, " | mundo desplazado a =", WORLD_OFFSET_Y);
+    },
+    undefined,
+    (err) => console.error("Error cargando modelo:", err)
   );
 
-  // 📌 SEGUNDO MODELO
+  // SEGUNDO MODELO
   loader.load(
     "/moon.glb",
     (gltf) => {
       const model2 = gltf.scene;
-      model2.position.set(5, 50, 100);
+      model2.position.set(5, 50 + WORLD_OFFSET_Y, 100);
       model2.scale.set(5, 5, 5);
       scene.add(model2);
-    }
+    },
+    undefined,
+    (err) => console.error("Error cargando segundo modelo:", err)
   );
 
   clock = new THREE.Clock();
@@ -166,16 +173,17 @@ function init() {
   renderer.setAnimationLoop(animate);
 }
 
-
 function spawnSphere() {
   const radius = THREE.MathUtils.randFloat(0.6, 1.5);
   const geo = new THREE.SphereGeometry(radius, 32, 32);
-  const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5) });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
+  });
 
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(
     THREE.MathUtils.randFloatSpread(40),
-    THREE.MathUtils.randFloat(10, 30),
+    THREE.MathUtils.randFloat(10, 30) + groundY,
     THREE.MathUtils.randFloatSpread(40)
   );
 
@@ -193,7 +201,7 @@ function updateSpheres(delta) {
   for (let i = spheres.length - 1; i >= 0; i--) {
     const s = spheres[i];
     s.position.addScaledVector(s.userData.velocity, delta);
-    if (s.position.y < -50) {
+    if (s.position.y < groundY - 50) {
       scene.remove(s);
       spheres.splice(i, 1);
     }
@@ -235,7 +243,6 @@ function aimShoot(e) {
   }
 }
 
-
 function animate() {
   const delta = clock.getDelta();
 
@@ -257,7 +264,6 @@ function animate() {
 
   renderer.render(scene, camera);
 }
-
 
 function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
