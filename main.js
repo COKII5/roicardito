@@ -16,7 +16,7 @@ let gameOver = false;
 let groundY = 0;
 
 // 🔽 offset extra para bajar el mundo completo
-const WORLD_OFFSET_Y = -5;
+const WORLD_OFFSET_Y = 5;
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
