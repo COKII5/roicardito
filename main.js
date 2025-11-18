@@ -13,7 +13,7 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
-const MAP_OFFSET_Y = -10;
+const MAP_OFFSET_Y = -15;
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
