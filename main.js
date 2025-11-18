@@ -1,9 +1,10 @@
+// ...existing code...
 import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/PointerLockControls.js";
 import { VRButton } from "https://unpkg.com/three@0.165.0/examples/jsm/webxr/VRButton.js";
 
-let scene, camera, renderer, controls, clock;
+let scene, camera, renderer, controls, clock, player;
 let spheres = [];
 let raycaster = new THREE.Raycaster();
 let score = 0;
@@ -13,7 +14,7 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
-// altura de la cámara (subida extra)
+// altura de la cámara (subida extra) — valor usado como altura relativa dentro del grupo "player"
 const CAMERA_START_Y = 8;
 
 // HUD SCORE
@@ -89,19 +90,31 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
 
-  // 📍 cámara más alta desde el inicio
+  // Crear un "player" (grupo) que contendrá la cámara.
+  // Moviendo el grupo elevamos/descendemos al jugador frente al mundo/modelo.
+  player = new THREE.Group();
+  player.name = "player";
+  player.add(camera);
+  scene.add(player);
+
+  // Posición local de la cámara dentro del grupo (altura relativa)
   camera.position.set(0, CAMERA_START_Y, 5);
   camera.lookAt(0, CAMERA_START_Y, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
+
+  // Forzar "local-floor" para que WebXR ubique el suelo en y=0
+  renderer.xr.setReferenceSpaceType("local-floor");
+
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // 📍 al entrar en VR, levantar aún más la cámara sobre el suelo
+  // En VR no forzamos poner la cámara a una altura fija; el headset controla la vista.
+  // Dejamos sessionstart sin mover la cámara si ya hemos alineado el grupo al cargar el mapa.
   renderer.xr.addEventListener("sessionstart", () => {
-    camera.position.set(0, CAMERA_START_Y, 0);
+    console.log("VR session started");
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -136,10 +149,19 @@ function init() {
     "/map 79p3.glb",
     (gltf) => {
       loadedModel = gltf.scene;
-      // si tu suelo del mapa está en y=0, déjalo así.
+      // Alinear el modelo al y=0 (suelo)
       loadedModel.position.y = 0;
       scene.add(loadedModel);
-      console.log("Modelo principal cargado");
+
+      // Calcular bounding box del modelo y elevar el grupo player para que la cámara quede por encima
+      const bbox = new THREE.Box3().setFromObject(loadedModel);
+      const highest = bbox.max.y || 0;
+      // Deseado: que la cámara quede aproximadamente 1.6m por encima del punto más alto del mapa.
+      // Como la cámara está a CAMERA_START_Y dentro de player, elevamos player a (highest - (camera.localY - desiredHeadY))
+      const desiredHeadY = 1.6; // altura de "ojos" sobre el suelo del mapa
+      const playerY = highest - (CAMERA_START_Y - desiredHeadY);
+      player.position.y = playerY;
+      console.log("Modelo principal cargado, highest:", highest, "player.position.y set to:", player.position.y);
     },
     undefined,
     (err) => console.error("Error cargando modelo:", err)
@@ -266,3 +288,4 @@ function onResize() {
 }
 
 init();
+// ...existing code...
