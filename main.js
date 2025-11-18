@@ -14,7 +14,7 @@ let timeLeft = gameDuration;
 let gameOver = false;
 
 // 📍 OFFSET MANUAL PARA BAJAR TODO EL MUNDO
-const MAP_OFFSET_Y = -30;
+const MAP_OFFSET_Y = -50;
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
