@@ -9,7 +9,7 @@ let raycaster = new THREE.Raycaster();
 let score = 0;
 let loadedModel = null;
 
-let gameDuration = 60; // segundos
+let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
@@ -41,7 +41,7 @@ timeEl.style.zIndex = "10";
 timeEl.textContent = "Time: 60.0";
 document.body.appendChild(timeEl);
 
-// GAME OVER TEXT
+// GAME OVER
 const gameOverEl = document.createElement("div");
 gameOverEl.style.position = "fixed";
 gameOverEl.style.left = "50%";
@@ -79,32 +79,33 @@ document.body.appendChild(crosshair);
 
 function init() {
   scene = new THREE.Scene();
-
-  // 🌫 NIEBLA MUY LEJANA (skybox visible)
   scene.fog = new THREE.Fog(0x440000, 200, 2000);
 
   const width = window.innerWidth;
   const height = window.innerHeight;
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
-
-  // POSICIÓN FIJA DE CÁMARA
   camera.position.set(0, 15, 5);
   camera.lookAt(0, 5, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
-  renderer.xr.enabled = true; // WebXR / VR activado
+  renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // FPS CONTROLS (modo no-VR, mouse)
+  // 🟢 Ajuste automático cuando VR inicia
+  renderer.xr.addEventListener("sessionstart", () => {
+    camera.position.set(0, 1.6, 0); // altura humana VR
+    console.log("VR iniciado -> altura corregida");
+  });
+
   controls = new PointerLockControls(camera, document.body);
   document.body.addEventListener("click", () => {
     if (!controls.isLocked && !gameOver) controls.lock();
   });
 
-  // 🔥 LUCES ROJAS SUAVES
+  // Lights
   const hemiLight = new THREE.HemisphereLight(0xff6644, 0x331100, 0.8);
   hemiLight.position.set(0, 80, 0);
   scene.add(hemiLight);
@@ -113,41 +114,29 @@ function init() {
   dirLight.position.set(15, 50, 10);
   scene.add(dirLight);
 
-  const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
-  scene.add(ambientRed);
+  scene.add(new THREE.AmbientLight(0xff3322, 0.35));
 
-  // ================================
-  // LOAD MAP PRINCIPAL
-  // ================================
+  // MAPA
   const loader = new GLTFLoader();
   loader.load(
     "/map 79p3.glb",
     (gltf) => {
       loadedModel = gltf.scene;
+      loadedModel.position.y = -1.6; // 🟢 Alineado al piso VR
       scene.add(loadedModel);
-      console.log("Modelo principal cargado");
-    },
-    undefined,
-    (err) => console.error("Error cargando modelo:", err)
+      console.log("Mapa cargado");
+    }
   );
 
-  // ================================
-  // LOAD SEGUNDO MODELO EXTRA
-  // ================================
+  // LUNA
   loader.load(
     "/moon.glb",
     (gltf) => {
       const model2 = gltf.scene;
       model2.position.set(5, 50, 100);
-      model2.rotation.x += 0.008;
-      model2.rotation.y += 0.01;
-      model2.rotation.z += 0.1;
       scene.add(model2);
-
-      console.log("Segundo modelo cargado");
-    },
-    undefined,
-    (err) => console.error("Error cargando segundo modelo:", err)
+      console.log("Luna cargada");
+    }
   );
 
   clock = new THREE.Clock();
@@ -155,14 +144,13 @@ function init() {
   window.addEventListener("resize", onResize);
   window.addEventListener("mousedown", aimShoot);
 
-  renderer.setAnimationLoop(animate); // WebXR loop
+  renderer.setAnimationLoop(animate);
 }
 
 function spawnSphere() {
-  const radius = THREE.MathUtils.randFloat(0.6, 1.5);
-  const geo = new THREE.SphereGeometry(radius, 32, 32);
+  const geo = new THREE.SphereGeometry(THREE.MathUtils.randFloat(0.6, 1.5), 32, 32);
   const mat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
+    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5)
   });
 
   const mesh = new THREE.Mesh(geo, mat);
@@ -184,20 +172,17 @@ function spawnSphere() {
 
 function updateSpheres(delta) {
   for (let i = spheres.length - 1; i >= 0; i--) {
-    const s = spheres[i];
-    s.position.addScaledVector(s.userData.velocity, delta);
-    if (s.position.y < -50) {
-      scene.remove(s);
+    spheres[i].position.addScaledVector(spheres[i].userData.velocity, delta);
+    if (spheres[i].position.y < -50) {
+      scene.remove(spheres[i]);
       spheres.splice(i, 1);
     }
   }
 }
 
-// AIM ASSIST SHOOT
 function aimShoot(e) {
   if (e.button !== 0) return;
-  if (!controls.isLocked) return;
-  if (gameOver) return;
+  if (!controls.isLocked || gameOver) return;
 
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
   const ray = raycaster.ray;
@@ -209,15 +194,14 @@ function aimShoot(e) {
     const center = new THREE.Vector3();
     s.getWorldPosition(center);
 
-    const distToRay = ray.distanceToPoint(center);
+    const dist = ray.distanceToPoint(center);
     const distance = camera.position.distanceTo(center);
 
-    const baseRadius = s.geometry.boundingSphere?.radius || 1;
-    const effectiveRadius = baseRadius + distance * 0.015;
+    const radius = (s.geometry.boundingSphere?.radius || 1) + distance * 0.015;
 
-    if (distToRay < effectiveRadius && distToRay < bestScore) {
+    if (dist < radius && dist < bestScore) {
       bestSphere = s;
-      bestScore = distToRay;
+      bestScore = dist;
     }
   });
 
@@ -233,7 +217,6 @@ function animate() {
   const delta = clock.getDelta();
 
   if (!gameOver) {
-    // actualizar tiempo
     timeLeft -= delta;
     if (timeLeft <= 0) {
       timeLeft = 0;
