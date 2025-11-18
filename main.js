@@ -13,11 +13,6 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
-let groundY = 0;
-
-// 🔽 offset extra para bajar el mundo completo
-const WORLD_OFFSET_Y = 5;
-
 // HUD SCORE
 const scoreEl = document.createElement("div");
 scoreEl.style.position = "fixed";
@@ -97,15 +92,12 @@ function init() {
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  renderer.xr.addEventListener("sessionstart", () => {
-    camera.position.set(0, groundY + 1.6, 0);
-  });
-
   controls = new PointerLockControls(camera, document.body);
   document.body.addEventListener("click", () => {
     if (!controls.isLocked && !gameOver) controls.lock();
   });
 
+  // LUCES
   const hemiLight = new THREE.HemisphereLight(0xff6644, 0x331100, 0.8);
   hemiLight.position.set(0, 80, 0);
   scene.add(hemiLight);
@@ -117,7 +109,7 @@ function init() {
   const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
   scene.add(ambientRed);
 
-  // Suelo base invisible (referencia)
+  // Plano base invisible (referencia)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(2000, 2000),
     new THREE.MeshBasicMaterial({ visible: false })
@@ -135,29 +127,27 @@ function init() {
       loadedModel = gltf.scene;
       scene.add(loadedModel);
 
+      // Colocamos el suelo del modelo a y = -1.6 (para VR)
       const box = new THREE.Box3().setFromObject(loadedModel);
-      // suelo original del modelo
-      const baseY = box.min.y;
+      const floorY = box.min.y;
+      const desiredFloorY = -1.6;
+      const deltaY = desiredFloorY - floorY;
+      loadedModel.position.y += deltaY;
 
-      // bajamos el mundo: lo alineamos + offset extra
-      loadedModel.position.y = -baseY + WORLD_OFFSET_Y;
-      groundY = WORLD_OFFSET_Y; // ahora el suelo lógico está más abajo
-
-      camera.position.set(0, groundY + 1.6, 5);
-      camera.lookAt(0, groundY + 1.6, 0);
-
-      console.log("Suelo original modelo y =", baseY, " | mundo desplazado a =", WORLD_OFFSET_Y);
+      // Cámara en modo no VR (PC / móvil sin VR)
+      camera.position.set(0, 1.6, 5);
+      camera.lookAt(0, 1.6, 0);
     },
     undefined,
     (err) => console.error("Error cargando modelo:", err)
   );
 
-  // SEGUNDO MODELO
+  // SEGUNDO MODELO (LUNA)
   loader.load(
     "/moon.glb",
     (gltf) => {
       const model2 = gltf.scene;
-      model2.position.set(5, 50 + WORLD_OFFSET_Y, 100);
+      model2.position.set(5, 50, 100);
       model2.scale.set(5, 5, 5);
       scene.add(model2);
     },
@@ -183,7 +173,7 @@ function spawnSphere() {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(
     THREE.MathUtils.randFloatSpread(40),
-    THREE.MathUtils.randFloat(10, 30) + groundY,
+    THREE.MathUtils.randFloat(10, 30),
     THREE.MathUtils.randFloatSpread(40)
   );
 
@@ -201,7 +191,7 @@ function updateSpheres(delta) {
   for (let i = spheres.length - 1; i >= 0; i--) {
     const s = spheres[i];
     s.position.addScaledVector(s.userData.velocity, delta);
-    if (s.position.y < groundY - 50) {
+    if (s.position.y < -60) {
       scene.remove(s);
       spheres.splice(i, 1);
     }
