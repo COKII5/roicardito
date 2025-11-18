@@ -1,10 +1,9 @@
-// ...existing code...
 import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/PointerLockControls.js";
 import { VRButton } from "https://unpkg.com/three@0.165.0/examples/jsm/webxr/VRButton.js";
 
-let scene, camera, renderer, controls, clock, player;
+let scene, camera, renderer, controls, clock;
 let spheres = [];
 let raycaster = new THREE.Raycaster();
 let score = 0;
@@ -14,9 +13,8 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
-// altura de la cámara (valor local dentro del grupo "player")
-// Reducido a una altura humana por defecto para evitar sensación de "volar"
-const CAMERA_START_Y = 1.6; // 1.6 metros (altura de ojos típica)
+// altura de la cámara (subida extra)
+const CAMERA_START_Y = 8;
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
@@ -91,34 +89,19 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
 
-  // Crear un "player" (grupo) que contendrá la cámara.
-  // Moviendo el grupo elevamos/descendemos al jugador frente al mundo/modelo.
-  player = new THREE.Group();
-  player.name = "player";
-  player.add(camera);
-  scene.add(player);
-
-  // Posición local de la cámara dentro del grupo (altura relativa).
-  // Ahora se usa CAMERA_START_Y (1.6m) para evitar sensación de volar.
+  // 📍 cámara más alta desde el inicio
   camera.position.set(0, CAMERA_START_Y, 5);
-  camera.lookAt(new THREE.Vector3(0, CAMERA_START_Y, 0));
+  camera.lookAt(0, CAMERA_START_Y, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
-
-  // Forzar "local-floor" para que WebXR ubique el suelo en y=0
-  renderer.xr.setReferenceSpaceType("local-floor");
-
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // Cuando la sesión VR empieza, sólo alineamos el grupo "player" con el suelo calculado.
+  // 📍 al entrar en VR, levantar aún más la cámara sobre el suelo
   renderer.xr.addEventListener("sessionstart", () => {
-    // Si ya cargó el mapa, la variable player.position.y se habrá calculado.
-    // Si no, mantenemos el player en y=0 (suelo local).
-    if (!isFinite(player.position.y)) player.position.y = 0;
-    console.log("VR session started; player.position.y =", player.position.y);
+    camera.position.set(0, CAMERA_START_Y, 0);
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -153,37 +136,10 @@ function init() {
     "/map 79p3.glb",
     (gltf) => {
       loadedModel = gltf.scene;
-      // Alinear el modelo al y=0 (suelo)
+      // si tu suelo del mapa está en y=0, déjalo así.
       loadedModel.position.y = 0;
       scene.add(loadedModel);
-
-      // Calcular bounding box del modelo.
-      const bbox = new THREE.Box3().setFromObject(loadedModel);
-      // Usar bbox.min.y como referencia de "suelo" del modelo (evita subir por el punto más alto)
-      const floorY = typeof bbox.min.y === "number" ? bbox.min.y : 0;
-
-      // Deseado: que la cámara quede aproximadamente desiredHeadY por encima del suelo del mapa.
-      const desiredHeadY = 1.6; // altura de "ojos" sobre el suelo del mapa
-
-      // player.position.y se ajusta de modo que camera.world.y = floorY + desiredHeadY
-      const playerY = floorY - (CAMERA_START_Y - desiredHeadY);
-
-      // Evitar posiciones absurdas: no dejar al player demasiado alto o extremadamente bajo.
-      // Ajuste opcional: si quieres asegurar que el player nunca quede por debajo de -10 o por encima de 200:
-      const clampedPlayerY = Math.min(Math.max(playerY, -10), 200);
-
-      player.position.y = clampedPlayerY;
-
-      console.log(
-        "Modelo cargado. floorY:",
-        floorY,
-        "bbox.max.y:",
-        bbox.max.y,
-        "player.position.y set to:",
-        player.position.y,
-        "=> camara mundo Y:",
-        player.position.y + CAMERA_START_Y
-      );
+      console.log("Modelo principal cargado");
     },
     undefined,
     (err) => console.error("Error cargando modelo:", err)
@@ -310,4 +266,3 @@ function onResize() {
 }
 
 init();
-// ...existing code...
