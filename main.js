@@ -1,10 +1,9 @@
-// ...existing code...
 import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/PointerLockControls.js";
 import { VRButton } from "https://unpkg.com/three@0.165.0/examples/jsm/webxr/VRButton.js";
 
-let scene, camera, renderer, controls, clock, player;
+let scene, camera, renderer, controls, clock;
 let spheres = [];
 let raycaster = new THREE.Raycaster();
 let score = 0;
@@ -14,8 +13,7 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
-// altura de la cámara (subida extra) — valor usado como altura relativa dentro del grupo "player"
-const CAMERA_START_Y = 8;
+let groundY = 0;
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
@@ -81,6 +79,7 @@ crosshair.innerHTML = `
 `;
 document.body.appendChild(crosshair);
 
+
 function init() {
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x440000, 200, 2000);
@@ -90,31 +89,15 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
 
-  // Crear un "player" (grupo) que contendrá la cámara.
-  // Moviendo el grupo elevamos/descendemos al jugador frente al mundo/modelo.
-  player = new THREE.Group();
-  player.name = "player";
-  player.add(camera);
-  scene.add(player);
-
-  // Posición local de la cámara dentro del grupo (altura relativa)
-  camera.position.set(0, CAMERA_START_Y, 5);
-  camera.lookAt(0, CAMERA_START_Y, 0);
-
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
 
-  // Forzar "local-floor" para que WebXR ubique el suelo en y=0
-  renderer.xr.setReferenceSpaceType("local-floor");
-
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // En VR no forzamos poner la cámara a una altura fija; el headset controla la vista.
-  // Dejamos sessionstart sin mover la cámara si ya hemos alineado el grupo al cargar el mapa.
   renderer.xr.addEventListener("sessionstart", () => {
-    console.log("VR session started");
+    camera.position.set(0, groundY + 1.6, 0);
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -122,7 +105,6 @@ function init() {
     if (!controls.isLocked && !gameOver) controls.lock();
   });
 
-  // LUCES
   const hemiLight = new THREE.HemisphereLight(0xff6644, 0x331100, 0.8);
   hemiLight.position.set(0, 80, 0);
   scene.add(hemiLight);
@@ -134,7 +116,7 @@ function init() {
   const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
   scene.add(ambientRed);
 
-  // Suelo base invisible en y=0 (referencia)
+  // SUELO INVISIBLE PARA REFERENCE
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(2000, 2000),
     new THREE.MeshBasicMaterial({ visible: false })
@@ -143,31 +125,29 @@ function init() {
   ground.position.y = 0;
   scene.add(ground);
 
-  // MAPA
   const loader = new GLTFLoader();
+
+  // 📌 MAPA PRINCIPAL
   loader.load(
     "/map 79p3.glb",
     (gltf) => {
       loadedModel = gltf.scene;
-      // Alinear el modelo al y=0 (suelo)
-      loadedModel.position.y = 0;
       scene.add(loadedModel);
 
-      // Calcular bounding box del modelo y elevar el grupo player para que la cámara quede por encima
-      const bbox = new THREE.Box3().setFromObject(loadedModel);
-      const highest = bbox.max.y || 0;
-      // Deseado: que la cámara quede aproximadamente 1.6m por encima del punto más alto del mapa.
-      // Como la cámara está a CAMERA_START_Y dentro de player, elevamos player a (highest - (camera.localY - desiredHeadY))
-      const desiredHeadY = 1.6; // altura de "ojos" sobre el suelo del mapa
-      const playerY = highest - (CAMERA_START_Y - desiredHeadY);
-      player.position.y = playerY;
-      console.log("Modelo principal cargado, highest:", highest, "player.position.y set to:", player.position.y);
-    },
-    undefined,
-    (err) => console.error("Error cargando modelo:", err)
+      // bounding box detecta altura real del suelo del glb
+      const box = new THREE.Box3().setFromObject(loadedModel);
+      loadedModel.position.y = -box.min.y;
+      groundY = -box.min.y;
+
+      // posición inicial de cámara fuera de VR
+      camera.position.set(0, groundY + 1.6, 5);
+      camera.lookAt(0, groundY + 1.6, 0);
+
+      console.log("Suelo detectado en y =", groundY);
+    }
   );
 
-  // LUNA / MODELO EXTRA
+  // 📌 SEGUNDO MODELO
   loader.load(
     "/moon.glb",
     (gltf) => {
@@ -175,10 +155,7 @@ function init() {
       model2.position.set(5, 50, 100);
       model2.scale.set(5, 5, 5);
       scene.add(model2);
-      console.log("Segundo modelo cargado");
-    },
-    undefined,
-    (err) => console.error("Error cargando segundo modelo:", err)
+    }
   );
 
   clock = new THREE.Clock();
@@ -189,14 +166,13 @@ function init() {
   renderer.setAnimationLoop(animate);
 }
 
+
 function spawnSphere() {
   const radius = THREE.MathUtils.randFloat(0.6, 1.5);
   const geo = new THREE.SphereGeometry(radius, 32, 32);
-  const mat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
-  });
-
+  const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5) });
   const mesh = new THREE.Mesh(geo, mat);
+
   mesh.position.set(
     THREE.MathUtils.randFloatSpread(40),
     THREE.MathUtils.randFloat(10, 30),
@@ -259,6 +235,7 @@ function aimShoot(e) {
   }
 }
 
+
 function animate() {
   const delta = clock.getDelta();
 
@@ -266,8 +243,8 @@ function animate() {
     timeLeft -= delta;
     if (timeLeft <= 0) {
       timeLeft = 0;
-      gameOverEl.style.display = "block";
       gameOver = true;
+      gameOverEl.style.display = "block";
       controls.unlock();
     }
 
@@ -281,6 +258,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+
 function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -288,4 +266,3 @@ function onResize() {
 }
 
 init();
-// ...existing code...
