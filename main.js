@@ -123,7 +123,7 @@ function init() {
   const loader = new GLTFLoader();
   loader.load("/map 79p3.glb", (gltf) => {
     loadedModel = gltf.scene;
-    loadedModel.position.y = 1.6; // 🟢 Alineado al piso VR
+    loadedModel.position.y = 2.6; // 🟢 Alineado al piso VR
     scene.add(loadedModel);
     console.log("Mapa cargado");
   });
@@ -243,3 +243,4 @@ function onResize() {
 }
 
 init();
+
