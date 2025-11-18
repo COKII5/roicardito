@@ -1,10 +1,9 @@
-import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";// ...existing code...
 import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/PointerLockControls.js";
 import { VRButton } from "https://unpkg.com/three@0.165.0/examples/jsm/webxr/VRButton.js";
 
-let scene, camera, renderer, controls, clock, player;
+let scene, camera, renderer, controls, clock;
 let spheres = [];
 let raycaster = new THREE.Raycaster();
 let score = 0;
@@ -42,7 +41,7 @@ timeEl.style.zIndex = "10";
 timeEl.textContent = "Time: 60.0";
 document.body.appendChild(timeEl);
 
-// GAME OVER
+// GAME OVER TEXT
 const gameOverEl = document.createElement("div");
 gameOverEl.style.position = "fixed";
 gameOverEl.style.left = "50%";
@@ -73,9 +72,9 @@ crosshair.style.display = "flex";
 crosshair.style.alignItems = "center";
 crosshair.style.justifyContent = "center";
 crosshair.innerHTML = `
-    <div style="width:2px;height:14px;background:white;position:absolute;"></div>
-    <div style="width:14px;height:2px;background:white;position:absolute;"></div>
-  `;
+  <div style="width:2px;height:14px;background:white;position:absolute;"></div>
+  <div style="width:14px;height:2px;background:white;position:absolute;"></div>
+`;
 document.body.appendChild(crosshair);
 
 function init() {
@@ -87,34 +86,17 @@ function init() {
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
 
-  // Crear un "player" (Group) que contendrá la cámara.
-  // En VR alinearemos el grupo con el suelo de referencia ("local-floor").
-  player = new THREE.Group();
-  player.name = "player";
-  player.add(camera);
-  scene.add(player);
-
-  // Posición inicial de la cámara en modo no-VR
-  camera.position.set(0, 15, 5);
-  camera.lookAt(0, 5, 0);
+  camera.position.set(0, 1.6, 5);
+  camera.lookAt(0, 1.6, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
-
-  // Usar "local-floor" para que WebXR sitúe el suelo en y=0
-  renderer.xr.setReferenceSpaceType("local-floor");
-
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // Ajuste automático cuando VR inicia: alinear el grupo "player" con el suelo.
   renderer.xr.addEventListener("sessionstart", () => {
-    // Colocar el player sobre el suelo reportado por el reference space.
-    player.position.y = 0;
-    // Ajuste de cámara en VR (opcional, el headset normalmente controla la altura).
-    camera.position.y = 1.6;
-    console.log("VR iniciado -> player alineado al suelo (local-floor)");
+    camera.position.set(0, 1.6, 0);
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -122,7 +104,6 @@ function init() {
     if (!controls.isLocked && !gameOver) controls.lock();
   });
 
-  // Lights
   const hemiLight = new THREE.HemisphereLight(0xff6644, 0x331100, 0.8);
   hemiLight.position.set(0, 80, 0);
   scene.add(hemiLight);
@@ -131,24 +112,30 @@ function init() {
   dirLight.position.set(15, 50, 10);
   scene.add(dirLight);
 
-  scene.add(new THREE.AmbientLight(0xff3322, 0.35));
+  const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
+  scene.add(ambientRed);
 
-  // MAPA
+  // Suelo invisible para proteger posición
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(2000, 2000),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  scene.add(ground);
+
   const loader = new GLTFLoader();
   loader.load("/map 79p3.glb", (gltf) => {
     loadedModel = gltf.scene;
-    // Alinear el modelo al y=0 (suelo). Ajusta si tu modelo necesita un offset distinto.
     loadedModel.position.y = 0;
     scene.add(loadedModel);
-    console.log("Mapa cargado");
   });
 
-  // LUNA
   loader.load("/moon.glb", (gltf) => {
     const model2 = gltf.scene;
     model2.position.set(5, 50, 100);
+    model2.scale.set(5, 5, 5);
     scene.add(model2);
-    console.log("Luna cargada");
   });
 
   clock = new THREE.Clock();
@@ -160,11 +147,8 @@ function init() {
 }
 
 function spawnSphere() {
-  const geo = new THREE.SphereGeometry(
-    THREE.MathUtils.randFloat(0.6, 1.5),
-    32,
-    32
-  );
+  const radius = THREE.MathUtils.randFloat(0.6, 1.5);
+  const geo = new THREE.SphereGeometry(radius, 32, 32);
   const mat = new THREE.MeshStandardMaterial({
     color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
   });
@@ -188,9 +172,10 @@ function spawnSphere() {
 
 function updateSpheres(delta) {
   for (let i = spheres.length - 1; i >= 0; i--) {
-    spheres[i].position.addScaledVector(spheres[i].userData.velocity, delta);
-    if (spheres[i].position.y < -50) {
-      scene.remove(spheres[i]);
+    const s = spheres[i];
+    s.position.addScaledVector(s.userData.velocity, delta);
+    if (s.position.y < -50) {
+      scene.remove(s);
       spheres.splice(i, 1);
     }
   }
@@ -198,7 +183,8 @@ function updateSpheres(delta) {
 
 function aimShoot(e) {
   if (e.button !== 0) return;
-  if (!controls.isLocked || gameOver) return;
+  if (!controls.isLocked) return;
+  if (gameOver) return;
 
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
   const ray = raycaster.ray;
@@ -210,14 +196,15 @@ function aimShoot(e) {
     const center = new THREE.Vector3();
     s.getWorldPosition(center);
 
-    const dist = ray.distanceToPoint(center);
+    const distToRay = ray.distanceToPoint(center);
     const distance = camera.position.distanceTo(center);
 
-    const radius = (s.geometry.boundingSphere?.radius || 1) + distance * 0.015;
+    const baseRadius = s.geometry.boundingSphere?.radius || 1;
+    const effectiveRadius = baseRadius + distance * 0.015;
 
-    if (dist < radius && dist < bestScore) {
+    if (distToRay < effectiveRadius && distToRay < bestScore) {
       bestSphere = s;
-      bestScore = dist;
+      bestScore = distToRay;
     }
   });
 
@@ -258,4 +245,3 @@ function onResize() {
 }
 
 init();
-// ...existing code...
