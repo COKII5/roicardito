@@ -13,6 +13,8 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
+let lastR2Pressed = false;   // 🎮 Control R2
+
 const MAP_OFFSET_Y = -15;
 
 // HUD SCORE
@@ -87,8 +89,6 @@ function init() {
   const height = window.innerHeight;
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
-
-  // 📍 Cámara más alta para asegurarnos de que aparece por encima del piso
   camera.position.set(0, 5, 5);
   camera.lookAt(0, 5, 0);
 
@@ -118,30 +118,21 @@ function init() {
   const ambientRed = new THREE.AmbientLight(0xff3322, 0.35);
   scene.add(ambientRed);
 
-  // cargar mapa y bajarlo manualmente
   const loader = new GLTFLoader();
-  loader.load(
-    "/map 79p3.glb",
-    (gltf) => {
-      loadedModel = gltf.scene;
-      loadedModel.position.y = MAP_OFFSET_Y;  // 📍 bajamos el mundo
-      scene.add(loadedModel);
-    }
-  );
+  loader.load("/map 79p3.glb", (gltf) => {
+    loadedModel = gltf.scene;
+    loadedModel.position.y = MAP_OFFSET_Y;
+    scene.add(loadedModel);
+  });
 
-  // LUNA también debe bajar
-  loader.load(
-    "/moon.glb",
-    (gltf) => {
-      const model2 = gltf.scene;
-      model2.position.set(5, 50 + MAP_OFFSET_Y, 100);
-      model2.scale.set(5, 5, 5);
-      scene.add(model2);
-    }
-  );
+  loader.load("/moon.glb", (gltf) => {
+    const model2 = gltf.scene;
+    model2.position.set(5, 50 + MAP_OFFSET_Y, 100);
+    model2.scale.set(5, 5, 5);
+    scene.add(model2);
+  });
 
   clock = new THREE.Clock();
-
   window.addEventListener("resize", onResize);
   window.addEventListener("mousedown", aimShoot);
 
@@ -183,9 +174,8 @@ function updateSpheres(delta) {
   }
 }
 
+// AIM SHOOT (click + R2)
 function aimShoot(e) {
-  if (e.button !== 0) return;
-  if (!controls.isLocked) return;
   if (gameOver) return;
 
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
@@ -220,6 +210,19 @@ function aimShoot(e) {
 
 function animate() {
   const delta = clock.getDelta();
+
+  // 🎮 GAMEPAD R2 SHOOT
+  const gamepads = navigator.getGamepads();
+  if (gamepads[0]) {
+    const gp = gamepads[0];
+    const r2 = gp.buttons[7];
+
+    if (r2 && r2.pressed && !lastR2Pressed && !gameOver) {
+      aimShoot({ button: 0 });
+    }
+
+    lastR2Pressed = r2.pressed;
+  }
 
   if (!gameOver) {
     timeLeft -= delta;
