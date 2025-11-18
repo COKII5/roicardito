@@ -15,8 +15,10 @@ let gameOver = false;
 
 let groundY = 0;
 
-// 🔽 offset extra para bajar el mundo completo
-const WORLD_OFFSET_Y = 50;
+// 🔽 offset extra para bajar/elevar el mundo completo
+const WORLD_OFFSET_Y = 5;
+// Ajuste adicional para elevar más el mapa si sales por debajo
+const EXTRA_RAISE = 6; // aumenta este valor si necesitas subir más
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
@@ -139,14 +141,20 @@ function init() {
       // suelo original del modelo
       const baseY = box.min.y;
 
-      // bajamos el mundo: lo alineamos + offset extra
-      loadedModel.position.y = -baseY + WORLD_OFFSET_Y;
-      groundY = WORLD_OFFSET_Y; // ahora el suelo lógico está más abajo
+      // subir el mundo: lo alineamos + offset extra + EXTRA_RAISE
+      loadedModel.position.y = -baseY + WORLD_OFFSET_Y + EXTRA_RAISE;
+      groundY = WORLD_OFFSET_Y + EXTRA_RAISE; // ahora el suelo lógico está más arriba
 
       camera.position.set(0, groundY + 1.6, 5);
       camera.lookAt(0, groundY + 1.6, 0);
 
-      console.log("Suelo original modelo y =", baseY, " | mundo desplazado a =", WORLD_OFFSET_Y);
+      console.log(
+        "Suelo original modelo y =",
+        baseY,
+        " | mundo desplazado a =",
+        WORLD_OFFSET_Y + EXTRA_RAISE
+      );
+      console.log("Si aún sigues debajo, incrementa EXTRA_RAISE en el fichero.");
     },
     undefined,
     (err) => console.error("Error cargando modelo:", err)
@@ -157,7 +165,7 @@ function init() {
     "/moon.glb",
     (gltf) => {
       const model2 = gltf.scene;
-      model2.position.set(5, 50 + WORLD_OFFSET_Y, 100);
+      model2.position.set(5, 50 + WORLD_OFFSET_Y + EXTRA_RAISE, 100);
       model2.scale.set(5, 5, 5);
       scene.add(model2);
     },
@@ -272,4 +280,4 @@ function onResize() {
 }
 
 init();
-
+```// filepath: c:\Users\ricar\Desktop\Desktop\proyectoRealidadVirtual\main.js
