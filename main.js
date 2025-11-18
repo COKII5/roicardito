@@ -14,8 +14,9 @@ let gameDuration = 60;
 let timeLeft = gameDuration;
 let gameOver = false;
 
-// altura de la cámara (subida extra) — valor usado como altura relativa dentro del grupo "player"
-const CAMERA_START_Y = 8;
+// altura de la cámara (valor local dentro del grupo "player")
+// Reducido a una altura humana por defecto para evitar sensación de "volar"
+const CAMERA_START_Y = 1.6; // 1.6 metros (altura de ojos típica)
 
 // HUD SCORE
 const scoreEl = document.createElement("div");
@@ -97,9 +98,10 @@ function init() {
   player.add(camera);
   scene.add(player);
 
-  // Posición local de la cámara dentro del grupo (altura relativa)
+  // Posición local de la cámara dentro del grupo (altura relativa).
+  // Ahora se usa CAMERA_START_Y (1.6m) para evitar sensación de volar.
   camera.position.set(0, CAMERA_START_Y, 5);
-  camera.lookAt(0, CAMERA_START_Y, 0);
+  camera.lookAt(new THREE.Vector3(0, CAMERA_START_Y, 0));
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
@@ -111,10 +113,12 @@ function init() {
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // En VR no forzamos poner la cámara a una altura fija; el headset controla la vista.
-  // Dejamos sessionstart sin mover la cámara si ya hemos alineado el grupo al cargar el mapa.
+  // Cuando la sesión VR empieza, sólo alineamos el grupo "player" con el suelo calculado.
   renderer.xr.addEventListener("sessionstart", () => {
-    console.log("VR session started");
+    // Si ya cargó el mapa, la variable player.position.y se habrá calculado.
+    // Si no, mantenemos el player en y=0 (suelo local).
+    if (!isFinite(player.position.y)) player.position.y = 0;
+    console.log("VR session started; player.position.y =", player.position.y);
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -153,15 +157,33 @@ function init() {
       loadedModel.position.y = 0;
       scene.add(loadedModel);
 
-      // Calcular bounding box del modelo y elevar el grupo player para que la cámara quede por encima
+      // Calcular bounding box del modelo.
       const bbox = new THREE.Box3().setFromObject(loadedModel);
-      const highest = bbox.max.y || 0;
-      // Deseado: que la cámara quede aproximadamente 1.6m por encima del punto más alto del mapa.
-      // Como la cámara está a CAMERA_START_Y dentro de player, elevamos player a (highest - (camera.localY - desiredHeadY))
+      // Usar bbox.min.y como referencia de "suelo" del modelo (evita subir por el punto más alto)
+      const floorY = typeof bbox.min.y === "number" ? bbox.min.y : 0;
+
+      // Deseado: que la cámara quede aproximadamente desiredHeadY por encima del suelo del mapa.
       const desiredHeadY = 1.6; // altura de "ojos" sobre el suelo del mapa
-      const playerY = highest - (CAMERA_START_Y - desiredHeadY);
-      player.position.y = playerY;
-      console.log("Modelo principal cargado, highest:", highest, "player.position.y set to:", player.position.y);
+
+      // player.position.y se ajusta de modo que camera.world.y = floorY + desiredHeadY
+      const playerY = floorY - (CAMERA_START_Y - desiredHeadY);
+
+      // Evitar posiciones absurdas: no dejar al player demasiado alto o extremadamente bajo.
+      // Ajuste opcional: si quieres asegurar que el player nunca quede por debajo de -10 o por encima de 200:
+      const clampedPlayerY = Math.min(Math.max(playerY, -10), 200);
+
+      player.position.y = clampedPlayerY;
+
+      console.log(
+        "Modelo cargado. floorY:",
+        floorY,
+        "bbox.max.y:",
+        bbox.max.y,
+        "player.position.y set to:",
+        player.position.y,
+        "=> camara mundo Y:",
+        player.position.y + CAMERA_START_Y
+      );
     },
     undefined,
     (err) => console.error("Error cargando modelo:", err)
