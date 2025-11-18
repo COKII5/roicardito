@@ -1,9 +1,10 @@
+import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";// ...existing code...
 import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/PointerLockControls.js";
 import { VRButton } from "https://unpkg.com/three@0.165.0/examples/jsm/webxr/VRButton.js";
 
-let scene, camera, renderer, controls, clock;
+let scene, camera, renderer, controls, clock, player;
 let spheres = [];
 let raycaster = new THREE.Raycaster();
 let score = 0;
@@ -85,22 +86,35 @@ function init() {
   const height = window.innerHeight;
 
   camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 5000);
+
+  // Crear un "player" (Group) que contendrá la cámara.
+  // En VR alinearemos el grupo con el suelo de referencia ("local-floor").
+  player = new THREE.Group();
+  player.name = "player";
+  player.add(camera);
+  scene.add(player);
+
+  // Posición inicial de la cámara en modo no-VR
   camera.position.set(0, 15, 5);
   camera.lookAt(0, 5, 0);
 
-  // ...existing code...
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(width, height);
   renderer.xr.enabled = true;
+
+  // Usar "local-floor" para que WebXR sitúe el suelo en y=0
   renderer.xr.setReferenceSpaceType("local-floor");
 
   document.body.appendChild(renderer.domElement);
   document.body.appendChild(VRButton.createButton(renderer));
 
-  // 🟢 Ajuste automático cuando VR inicia
+  // Ajuste automático cuando VR inicia: alinear el grupo "player" con el suelo.
   renderer.xr.addEventListener("sessionstart", () => {
-    camera.position.set(0, 1.6, 0); // altura humana VR
-    console.log("VR iniciado -> altura corregida");
+    // Colocar el player sobre el suelo reportado por el reference space.
+    player.position.y = 0;
+    // Ajuste de cámara en VR (opcional, el headset normalmente controla la altura).
+    camera.position.y = 1.6;
+    console.log("VR iniciado -> player alineado al suelo (local-floor)");
   });
 
   controls = new PointerLockControls(camera, document.body);
@@ -123,7 +137,8 @@ function init() {
   const loader = new GLTFLoader();
   loader.load("/map 79p3.glb", (gltf) => {
     loadedModel = gltf.scene;
-    loadedModel.position.y = 2.6; // 🟢 Alineado al piso VR
+    // Alinear el modelo al y=0 (suelo). Ajusta si tu modelo necesita un offset distinto.
+    loadedModel.position.y = 0;
     scene.add(loadedModel);
     console.log("Mapa cargado");
   });
@@ -243,4 +258,4 @@ function onResize() {
 }
 
 init();
-
+// ...existing code...
